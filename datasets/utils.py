@@ -5,7 +5,7 @@ import os
 import torch
 import torchvision
 from collections import defaultdict
-
+import matplotlib.pyplot as plt
 colormap = torch.tensor([[0, 0, 0], [250, 50, 83], [51, 221, 255]], dtype=torch.uint8)
 classes = ["background", "plane", "boat"]
 
@@ -83,3 +83,24 @@ def rgb_to_class(labels, colormap):
         raise ValueError("存在未匹配的像素值，请检查标签图像或颜色映射表。")
     
     return class_indices
+
+def plot_images(features):
+    # features (batch_size, 3, h, w )
+    # 没有标签
+    plt.figure(figsize=(15, 5))
+    for i in range(len(features)):
+        plt.subplot(1, len(features), i+1)
+        plt.imshow(features[i])
+    plt.show()
+
+
+def labels_to_rgb(labels, colormap):
+    #labels (batch_size, h, w)
+    #colormap (C, 3)
+    # 把labels转换为RGB图像， 根据colormap
+    labels = labels.unsqueeze(3)  # [B, H, W, 1, 3]
+    colormap = colormap.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1, C, 3]
+    matches = (labels == colormap).all(dim=-1)  # [B, H, W, C]
+    class_indices = matches.long().argmax(dim=-1)  # [B, H, W]
+    return class_indices
+
