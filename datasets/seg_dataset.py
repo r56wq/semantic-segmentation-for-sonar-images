@@ -3,42 +3,6 @@ import torchvision
 from datasets.utils import read_voc_images, crop_images, colormap
 from torch.utils.data import DataLoader
 
-def rgb_to_class(labels, colormap):
-    """
-    将 RGB 标签图像转换为类别索引图像。
-    
-    参数:
-        labels (torch.Tensor): RGB 标签图像，形状为 [B, H, W, 3]。
-        colormap (torch.Tensor): 颜色映射表，形状为 [C, 3]，C 是类别数。
-    
-    返回:
-        torch.Tensor: 类别索引图像，形状为 [B, H, W]。
-    """
-    assert len(labels.shape) == 4 and labels.shape[3] == 3, "labels 的形状应为 [B, H, W, 3]"
-    assert len(colormap.shape) == 2 and colormap.shape[1] == 3, "colormap 的形状应为 [C, 3]"
-    
-    # 将 labels 和 colormap 转换为相同的形状以便比较
-    labels = labels.unsqueeze(3)  # [B, H, W, 1, 3]
-    colormap = colormap.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1, C, 3]
-    
-    # 计算每个像素与 colormap 的匹配情况
-    matches = (labels == colormap).all(dim=-1)  # [B, H, W, C]
-    
-    # 找到每个像素匹配的类别索引
-    class_indices = matches.long().argmax(dim=-1)  # [B, H, W]
-    
-    # 检查是否有未匹配的像素
-    unmatched = ~matches.any(dim=-1)
-    if unmatched.any():
-        # 打印未匹配的像素值及其位置
-        unmatched_indices = torch.nonzero(unmatched)  # 找到未匹配像素的索引
-        for idx in unmatched_indices:
-            b, h, w = idx.tolist()  # 批次、高度、宽度索引
-            pixel_value = labels[b, h, w, 0].tolist()  # 未匹配的像素值
-            print(f"未匹配的像素值: {pixel_value}，位置: (批次={b}, 行={h}, 列={w})")
-        raise ValueError("存在未匹配的像素值，请检查标签图像或颜色映射表。")
-    
-    return class_indices
 
 class SegDataset(torch.utils.data.Dataset):
     # 只做了 normalize 和裁剪，没有其他的数据增广
