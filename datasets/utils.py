@@ -7,8 +7,6 @@ import torchvision
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-colormap = [[0, 0, 0], [250, 50, 83], [51, 221, 255]]
-classes = ["background", "plane", "boat"]
 
 import torch
 
