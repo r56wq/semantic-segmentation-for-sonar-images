@@ -3,7 +3,7 @@ from torch import nn
 import time
 import matplotlib.pyplot as plt
 
-def train_ch13(net, train_iter, test_iter, loss, trainer, num_epochs, 
+def train_ch13(net, train_iter, val_iter, loss, trainer, num_epochs, 
                devices=None, plot_graph=True, print_time=True):
     """
     Train a model with multiple GPUs.
@@ -11,7 +11,7 @@ def train_ch13(net, train_iter, test_iter, loss, trainer, num_epochs,
     Args:
         net: Neural network model
         train_iter: Training data iterator
-        test_iter: Test data iterator
+        val_iter: val data iterator
         loss: Loss function
         trainer: Optimizer
         num_epochs: Number of epochs
@@ -45,13 +45,13 @@ def train_ch13(net, train_iter, test_iter, loss, trainer, num_epochs,
             metrics[3] += labels.numel()
             
             # Update plot if enabled
-            if plot_graph and (i + 1) % (num_batches // 5) == 0 or i == num_batches - 1:
+            if plot_graph and (i + 1) % (num_batches // 2) == 0 or i == num_batches - 1:
                 train_losses.append(metrics[0] / metrics[2])
                 train_accs.append(metrics[1] / metrics[3])
                 test_accs.append(None)
         
         # Calculate test accuracy
-        test_acc = evaluate_accuracy(net, test_iter, devices[0])
+        test_acc = evaluate_accuracy(net, val_iter, devices[0])
         if plot_graph:
             train_losses.append(None)
             train_accs.append(None)

@@ -43,7 +43,7 @@ def image_to_class_indices(raw_label, colormap):
     # Reshape back to [H, W]
     return class_indices.reshape(H, W)
 
-def read_voc_images(voc_path, colormap, is_train=True):
+def read_voc_images(voc_path, colormap, read_type):
     """
     从 VOC 数据集中读取图像和标签。
     
@@ -56,10 +56,21 @@ def read_voc_images(voc_path, colormap, is_train=True):
         labels (list): 标签列表，每个标签是一个 torch.Tensor。
     """
     mode = torchvision.io.image.ImageReadMode.RGB
-    Annotations_path = os.path.join(voc_path, "train" if is_train else "test", "Annotations")
-    JPEGImages_path = os.path.join(voc_path, "train" if is_train else "test", "JPEGImages")
+    if (read_type == "train"): 
+        Annotations_path = os.path.join(voc_path, "train", "Annotations")
+        JPEGImages_path = os.path.join(voc_path, "train", "JPEGImages")
+
+    elif (read_type == "val"):
+        Annotations_path = os.path.join(voc_path, "val", "Annotations")
+        JPEGImages_path = os.path.join(voc_path, "val", "JPEGImages")
+
+    elif (read_type == "test"):
+        Annotations_path = os.path.join(voc_path, "test", "Annotations")
+        JPEGImages_path = os.path.join(voc_path, "test", "JPEGImages")
+    else:
+        RuntimeError("invalid read_type")
+        
     JPEGImages_names = os.listdir(JPEGImages_path)
-    
     features, labels = [], []
     
     for name in JPEGImages_names:
