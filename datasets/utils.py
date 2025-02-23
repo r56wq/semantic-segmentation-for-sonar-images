@@ -6,10 +6,46 @@ import torch
 import torchvision
 from collections import defaultdict
 import matplotlib.pyplot as plt
-colormap = torch.tensor([[0, 0, 0], [250, 50, 83], [51, 221, 255]], dtype=torch.uint8)
+
+colormap = [[0, 0, 0], [250, 50, 83], [51, 221, 255]]
 classes = ["background", "plane", "boat"]
 
-def read_voc_images(voc_path, is_train=True):
+import torch
+
+def image_to_class_indices(raw_label, colormap):
+    """
+    Convert an RGB label image to a class index image.
+    
+    Args:
+        raw_label (torch.Tensor): RGB label image, shape [C, H, W] (e.g., [3, H, W]).
+        colormap (torch.Tensor): Color map, shape [num_classes, 3].
+    
+    Returns:
+        torch.Tensor: Class index image, shape [H, W].
+    """
+    # Ensure raw_label is [H, W, 3] by permuting if needed (from [3, H, W])
+    if raw_label.shape[0] == 3:
+        raw_label = raw_label.permute(1, 2, 0)  # [H, W, 3]
+
+    H, W, _ = raw_label.shape
+    labels_flat = raw_label.reshape(-1, 3)  # [H*W, 3]
+
+    # Convert colormap to tensor if it isn’t already
+    colormap = torch.tensor(colormap, device=raw_label.device, dtype=raw_label.dtype)  # [C, 3]
+
+    # Compare each pixel’s RGB with colormap rows: [H*W, C]
+    matches = (labels_flat.unsqueeze(1) == colormap.unsqueeze(0)).all(dim=2)  # [H*W, C], boolean
+
+    # Convert boolean tensor to integer (True -> 1, False -> 0)
+    matches = matches.to(torch.uint8)  # or matches.long(), matches.float()
+
+    # Get class indices: [H*W]
+    class_indices = matches.argmax(dim=1)  # Now works because matches is numeric
+
+    # Reshape back to [H, W]
+    return class_indices.reshape(H, W)
+
+def read_voc_images(voc_path, colormap, is_train=True):
     """
     从 VOC 数据集中读取图像和标签。
     
@@ -34,10 +70,12 @@ def read_voc_images(voc_path, is_train=True):
         features.append(feature)
         
         # 读取标签
-        label = torchvision.io.read_image(os.path.join(Annotations_path, name.split(".")[0] + ".png"), mode)
+        raw_label = torchvision.io.read_image(os.path.join(Annotations_path, name.split(".")[0] + ".png"), mode)
+        label = image_to_class_indices(raw_label, colormap)
         labels.append(label)
-         
+
     return features, labels
+        
 
 def crop_images(feature, label, height = 500, width = 1000):
     # CenterCrop 会自动补0如果图片太小了，所以对feature和label都可以用
@@ -59,48 +97,41 @@ def rgb_to_class(labels, colormap):
         torch.Tensor: 类别索引图像，形状为 [B, H, W]。
     """
     assert len(labels.shape) == 4 and labels.shape[3] == 3, "labels 的形状应为 [B, H, W, 3]"
-    assert len(colormap.shape) == 2 and colormap.shape[1] == 3, "colormap 的形状应为 [C, 3]"
-    
-    # 将 labels 和 colormap 转换为相同的形状以便比较
-    labels = labels.unsqueeze(3)  # [B, H, W, 1, 3]
-    colormap = colormap.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1, C, 3]
-    
-    # 计算每个像素与 colormap 的匹配情况
-    matches = (labels == colormap).all(dim=-1)  # [B, H, W, C]
-    
-    # 找到每个像素匹配的类别索引
-    class_indices = matches.long().argmax(dim=-1)  # [B, H, W]
-    
-    # 检查是否有未匹配的像素
-    unmatched = ~matches.any(dim=-1)
-    if unmatched.any():
-        # 打印未匹配的像素值及其位置
-        unmatched_indices = torch.nonzero(unmatched)  # 找到未匹配像素的索引
-        for idx in unmatched_indices:
-            b, h, w = idx.tolist()  # 批次、高度、宽度索引
-            pixel_value = labels[b, h, w, 0].tolist()  # 未匹配的像素值
-            print(f"未匹配的像素值: {pixel_value}，位置: (批次={b}, 行={h}, 列={w})")
-        raise ValueError("存在未匹配的像素值，请检查标签图像或颜色映射表。")
-    
-    return class_indices
+    assert len(colormap.shape) == 2 and colormap.shape[1] == 3, "colormap的形状应为[C, 3]"
+
+    # Reshape labels to [B*H*W, 3] for broadcasting
+    B, H, W, _ = labels.shape
+    labels_flat = labels.reshape(-1, 3)  # [B*H*W, 3]
+
+    # Ensure colormap is a tensor and reshape for broadcasting
+    colormap = torch.tensor(colormap, device=labels.device, dtype=labels.dtype)  # [C, 3]
+
+    # Compare each pixel's RGB with colormap rows: [B*H*W, C]
+    matches = (labels_flat.unsqueeze(1) == colormap.unsqueeze(0)).all(dim=2)  # [B*H*W, C]
+
+    # Get class indices: [B*H*W]
+    class_indices = matches.argmax(dim=1)  # If no match, argmax gives 0 (background)
+
+    # Reshape back to [B, H, W]
+    return class_indices.reshape(B, H, W)
+
 
 def plot_images(features):
     # features (batch_size, 3, h, w )
     # 没有标签
     plt.figure(figsize=(15, 5))
     for i in range(len(features)):
+        img = features[i].permute(1, 2, 0).numpy()
         plt.subplot(1, len(features), i+1)
-        plt.imshow(features[i])
+        plt.imshow(img)
     plt.show()
 
 
-def labels_to_rgb(labels, colormap):
+def labels_to_rgb(labels):
     #labels (batch_size, h, w)
-    #colormap (C, 3)
     # 把labels转换为RGB图像， 根据colormap
     labels = labels.unsqueeze(3)  # [B, H, W, 1, 3]
     colormap = colormap.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1, C, 3]
     matches = (labels == colormap).all(dim=-1)  # [B, H, W, C]
     class_indices = matches.long().argmax(dim=-1)  # [B, H, W]
     return class_indices
-
