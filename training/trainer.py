@@ -2,6 +2,11 @@ import torch
 from torch import nn
 import time
 import matplotlib.pyplot as plt
+from torch.nn import functional as F
+
+def loss(inputs, targets):
+    return F.cross_entropy(inputs, targets, reduction='none').mean(1).mean(1)
+
 
 def train_ch13(net, train_iter, val_iter, loss, trainer, num_epochs, 
                devices=None, plot_graph=True, print_time=True):
