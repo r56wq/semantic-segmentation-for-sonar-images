@@ -128,19 +128,89 @@ def rgb_to_class(labels, colormap):
 def plot_images(features):
     # features (batch_size, 3, h, w )
     # 没有标签
+    fig = features.int()
     plt.figure(figsize=(15, 5))
-    for i in range(len(features)):
-        img = features[i].permute(1, 2, 0).numpy()
-        plt.subplot(1, len(features), i+1)
+    for i in range(len(fig)):
+        img = fig[i].permute(1, 2, 0).numpy()
+        plt.subplot(1, len(fig), i+1)
         plt.imshow(img)
     plt.show()
 
 
-def labels_to_rgb(labels):
-    #labels (batch_size, h, w)
+def labels_to_rgb(labels, colormap):
+    # labels (batch_size, h, w)
     # 把labels转换为RGB图像， 根据colormap
-    labels = labels.unsqueeze(3)  # [B, H, W, 1, 3]
-    colormap = colormap.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # [1, 1, 1, C, 3]
-    matches = (labels == colormap).all(dim=-1)  # [B, H, W, C]
-    class_indices = matches.long().argmax(dim=-1)  # [B, H, W]
-    return class_indices
+    B, H, W = labels.shape
+    rgb_images = torch.zeros((B, H, W, 3), dtype=torch.uint8, device=labels.device)
+    for i in range(len(colormap)):
+        rgb_images[labels == i] = colormap[i]
+    return rgb_images
+
+def set_value(picture, value, x, y):
+        """
+        设置图片的某个像素点的值 
+    参数:
+        picture (torch.Tensor): 图像，形状为 [3, H, W]。
+        value(List): 一个list，表示 RGB 值。
+        x (int): 行坐标。
+        y (int): 列坐标。
+    """
+        picture[0][x][y] = value[0]
+        picture[1][x][y] = value[1]
+        picture[2][x][y] = value[2]
+
+def classes_to_pic(class_indices, colormap):
+        """
+        设置图片的某个像素点的值 
+    参数:
+        classs_indices (torch.Tensor): (H, W) 表示类别的一个张量
+        colormap (List): 表示颜色和类别的映射
+    返回:
+        类别对应的RGB图像
+    """
+        H, W = class_indices.shape
+        pic = torch.zeros((3, H, W))
+        for h in range(H):
+            for w in range(W):
+                class_id = class_indices[h][w]
+                pic[0][h][w] = colormap[class_id][0]
+                pic[1][h][w] = colormap[class_id][1]
+                pic[2][h][w] = colormap[class_id][2]
+        return pic                
+
+import torch
+
+def print_non_zeros(img: torch.Tensor):
+    """
+    打印一个张量中不为0的元素，如果通道数为3，则打印RGB值
+    参数:
+        img (torch.Tensor): 图像，形状为 [3, H, W] 或者 [1, H, W]
+    """
+    # 检查输入张量的维度
+    assert img.dim() == 3, "Input tensor must have 3 dimensions [C, H, W]"
+    channels, height, width = img.shape
+    
+    # 确保通道数为1或3
+    assert channels in [1, 3], "Channels must be 1 or 3"
+    
+    # 找到非零元素的位置
+    nonzero_indices = torch.nonzero(img, as_tuple=False)
+    
+    if nonzero_indices.numel() == 0:
+        print("图像中没有非零元素")
+        return
+    
+    # 遍历非零位置并打印值
+    print(f"非零元素 (通道数={channels}):")
+    for idx in nonzero_indices:
+        c, h, w = idx[0], idx[1], idx[2]  # 通道、高度、宽度坐标
+        if channels == 3:
+            # RGB图像，打印RGB值
+            r, g, b = img[:, h, w]
+            print(f"位置 ({h}, {w}): RGB = ({r.item()}, {g.item()}, {b.item()})")
+        else:
+            # 单通道图像，打印单一值
+            value = img[0, h, w]
+            print(f"位置 ({h}, {w}): 值 = {value.item()}")
+
+
